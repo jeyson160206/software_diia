@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIIA | Dashboard de Evidencias</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Google Fonts para un look más técnico -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <header class="main-header">
+        <div class="logo-area">
+            <div class="brand-container">
+                <span class="brand-name">DIIA</span>
+                <span class="brand-tag">INDUSTRIAL DEEP LEARNING</span>
+            </div>
+            <div class="v-divider"></div>
+            <div class="system-info">
+                <span class="label">SISTEMA DE VISIÓN COMPUTACIONAL</span>
+                <span class="sub-label">Gestión de Evidencias YOLO V8/V11</span>
+            </div>
+        </div>
+        
+        <div class="header-tools">
+            <div class="system-status">
+                <div class="pulse-indicator"></div>
+                <span class="status-text">NODO ACTIVO</span>
+            </div>
+            <div class="clock" id="live-clock">08:49:53 a. m.</div>
+            <div class="user-actions">
+                <button class="icon-btn"><i class="fas fa-bell"></i></button>
+                <button class="icon-btn active"><i class="fas fa-microchip"></i></button>
+            </div>
+        </div>
+    </header>
+
+    <nav class="sub-nav">
+        <div class="tabs">
+            <button class="tab-link active">Vista General</button>
+            <button class="tab-link">Entrenamientos</button>
+            <button class="tab-link">Datasets</button>
+            <button class="tab-link">Métricas de Inferencia</button>
+        </div>
+        <div class="action-buttons">
+            <button class="btn btn-primary"><i class="fas fa-cloud-upload-alt"></i> SUBIR VIDEO</button>
+            <button class="btn btn-outline"><i class="fas fa-file-csv"></i> EXPORTAR LOGS</button>
+        </div>
+    </nav>
+
+    <main class="content-wrapper">
+        <!-- CONTENEDOR VACÍO (Empty State) -->
+        <section class="empty-dashboard">
+            <div class="empty-icon">
+                <i class="fas fa-video-slash"></i>
+            </div>
+            <h2>No hay evidencias registradas</h2>
+            <p>Inicie la carga de videos procesados por YOLO para visualizar la trazabilidad y métricas de detección.</p>
+            <div class="empty-actions">
+                <button class="btn btn-secondary">Configurar Directorio de Salida</button>
+            </div>
+        </section>
+
+        <!-- Grid preparado para cuando haya datos (vacio por ahora) -->
+        <div class="video-grid" id="videoContainer">
+            <!-- Las tarjetas se insertarán aquí mediante JS -->
+        </div>
+    </main>
+
+    <footer class="main-footer">
+        <span>RUC: 20611438835</span>
+        <span class="version">Build v2.4.0 - Edge Computing Enabled</span>
+    </footer>
+    <script src="script.js"></script>
+</body>
+</html>
