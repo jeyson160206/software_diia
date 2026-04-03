@@ -8,6 +8,7 @@
     <!-- Google Fonts para un look más técnico -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <header class="main-header">
@@ -63,7 +64,12 @@
         </section>
 
         <!-- Grid preparado para cuando haya datos (vacio por ahora) -->
-        <div class="video-grid" id="videoContainer">
+<div class="loading-spinner" id="loadingSpinner" style="display:none;">
+  <div class="spinner"></div>
+  <p>Analizando video con YOLO v8... por favor espere</p>
+</div>
+
+<div class="video-grid" id="videoContainer">
             <!-- Las tarjetas se insertarán aquí mediante JS -->
         </div>
     </main>
@@ -72,6 +78,10 @@
         <span>RUC: 20611438835</span>
         <span class="version">Build v2.4.0 - Edge Computing Enabled</span>
     </footer>
-    <script src="script.js"></script>
+<script src="script.js"></script>
+    <script src="entrenamientos.js"></script>
+    <script src="datasets.js"></script>
+    <script src="metricas.js"></script>
+
 </body>
 </html>

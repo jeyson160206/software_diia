@@ -377,6 +377,92 @@ body {
     background: #020617;
 }
 
+/* NEW TAB STYLES */
+.datasets-grid {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.stats-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin: 2rem 0;
+}
+
+.stat-card {
+    background: var(--bg-card);
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    border-left: 4px solid var(--neon-green);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+}
+
+.stat-card h4 {
+    color: var(--text-mid);
+    margin-bottom: 1rem;
+    font-family: var(--font-mono);
+}
+
+.stat-number {
+    font-size: 3rem;
+    font-weight: 800;
+    color: var(--neon-green);
+    font-family: var(--font-mono);
+}
+
+.history-table {
+    background: var(--bg-card);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+
+.history-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.history-table th {
+    background: rgba(16,185,129,0.2);
+    color: var(--neon-green);
+    padding: 1rem 1.5rem;
+    text-align: left;
+    font-weight: 600;
+    font-family: var(--font-mono);
+}
+
+.history-table td {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-high);
+}
+
+.history-table tr:hover {
+    background: rgba(16,185,129,0.1);
+    border-left: 4px solid var(--neon-green);
+}
+
+.server-status {
+    background: var(--bg-card);
+    padding: 1.5rem;
+    border-radius: 12px;
+    margin-top: 2rem;
+}
+
+.status-metric {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.status-value {
+    color: var(--neon-green);
+    font-family: var(--font-mono);
+    font-weight: 700;
+}
+
 /* History Table Styles */
 .history-table {
     background: var(--bg-card);
@@ -536,4 +622,80 @@ body {
     z-index: 10000;
     animation: slideIn 0.3s ease;
     max-width: 350px;
+}
+
+/* Loading Spinner & Scrollable Detections */
+.loading-spinner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(5,10,14,0.95);
+  backdrop-filter: blur(5px);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: var(--neon-green);
+  font-family: var(--font-mono);
+}
+
+.spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid rgba(0,255,157,0.3);
+  border-top-color: var(--neon-green);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  box-shadow: 0 0 30px var(--neon-green);
+  margin-bottom: 1.5rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.detections-list {
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.detections-list ul {
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.detections-list ul::-webkit-scrollbar {
+  width: 6px;
+}
+
+.detections-list ul::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px;
+}
+
+.detections-list ul::-webkit-scrollbar-thumb {
+  background: var(--neon-green);
+  border-radius: 3px;
+}
+
+.detections-list ul::-webkit-scrollbar-thumb:hover {
+  background: #00cc7a;
+}
+
+/* Inference Time Metric */
+.bar-container.inference-time label {
+  color: var(--neon-green) !important;
+  font-weight: bold !important;
+  font-size: 0.9rem;
+}
+
+#inferenceVal {
+  color: var(--neon-green) !important;
+  font-size: 1rem !important;
+  font-weight: 800 !important;
 }
