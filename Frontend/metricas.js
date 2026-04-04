@@ -17,7 +17,7 @@ async function loadMetricas() {
                 </div>
             </div>
             <div style="margin-top: 2rem; text-align: center;">
-                <a href="http://127.0.0.1:8000/export-csv" class="btn btn-primary" target="_blank">
+                <a href="/export-csv" class="btn btn-primary" target="_blank">
                     <i class="fas fa-download"></i> Descargar Reporte CSV Completo
                 </a>
             </div>
@@ -25,7 +25,7 @@ async function loadMetricas() {
     `;
 
     try {
-        const response = await fetch('http://127.0.0.1:8000/videos');
+        const response = await fetch('/videos');
         const data = await response.json();
         const videos = data.videos || [];
 
@@ -100,3 +100,4 @@ async function loadMetricas() {
         // Keep empty overlay or show error
     }
 }
+

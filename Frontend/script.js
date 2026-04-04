@@ -4,14 +4,17 @@
 document.addEventListener('DOMContentLoaded', function() {
     // LIVE CLOCK
     function updateClock() {
-        const now = new Date();
-        const timeString = now.toLocaleTimeString('es-ES', { 
-            hour12: true, 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            second: '2-digit' 
-        });
-        document.getElementById('live-clock').textContent = timeString;
+        const clockElement = document.getElementById('live-clock');
+        if (clockElement) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('es-ES', { 
+                hour12: true, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            });
+            clockElement.textContent = timeString;
+        }
     }
     updateClock();
     setInterval(updateClock, 1000);
@@ -20,65 +23,72 @@ document.addEventListener('DOMContentLoaded', function() {
     const tabLinks = document.querySelectorAll('.tab-link');
     const contentWrapper = document.querySelector('.content-wrapper');
     
-    tabLinks.forEach(link => {
-        link.addEventListener('click', async () => {
-            tabLinks.forEach(t => t.classList.remove('active'));
-            link.classList.add('active');
-            
-            const tabText = link.textContent.trim();
-            const videoContainer = document.getElementById('videoContainer');
-            
-            if (tabText === 'Vista General') {
-                if (document.querySelector('.empty-dashboard')) {
-                    contentWrapper.innerHTML = document.querySelector('.empty-dashboard').outerHTML;
+    if (tabLinks.length > 0) {
+        tabLinks.forEach(link => {
+            link.addEventListener('click', async () => {
+                tabLinks.forEach(t => t.classList.remove('active'));
+                link.classList.add('active');
+                
+                const tabText = link.textContent.trim();
+                const videoContainer = document.getElementById('videoContainer');
+                
+                if (tabText === 'Vista General') {
+                    const empty = document.querySelector('.empty-dashboard');
+                    if (empty && contentWrapper) {
+                        contentWrapper.innerHTML = empty.outerHTML;
+                    }
+                    if (videoContainer) videoContainer.style.display = 'grid';
+                } else if (tabText === 'Entrenamientos') {
+                    if (videoContainer) videoContainer.style.display = 'none';
+                    if (typeof loadEntrenamientos === 'function') await loadEntrenamientos();
+                } else if (tabText === 'Datasets') {
+                    if (videoContainer) videoContainer.style.display = 'none';
+                    if (typeof loadDatasets === 'function') loadDatasets();
+                } else if (tabText === 'Métricas de Inferencia') {
+                    if (videoContainer) videoContainer.style.display = 'none';
+                    if (typeof loadMetricas === 'function') await loadMetricas();
                 }
-                videoContainer.style.display = 'grid';
-            } else if (tabText === 'Entrenamientos') {
-                videoContainer.style.display = 'none';
-                await loadEntrenamientos();
-            } else if (tabText === 'Datasets') {
-                videoContainer.style.display = 'none';
-                loadDatasets();
-            } else if (tabText === 'Métricas de Inferencia') {
-                videoContainer.style.display = 'none';
-                await loadMetricas();
-            }
+            });
         });
-    });
+    }
 
     // VIDEO UPLOAD & SIMULATION
     let currentVideoFile = null;
     let currentVideo = null;
     let summaryDetections = [];
-let currentAnalysisData = null;
+    let currentAnalysisData = null;
 
-    document.querySelector('.btn-primary').addEventListener('click', () => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'video/*';
-        input.onchange = analyzeVideoFile;
-        input.click();
-    });
+    const uploadBtn = document.querySelector('.btn-primary');
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'video/*';
+            input.onchange = analyzeVideoFile;
+            input.click();
+        });
+    }
 
     async function analyzeVideoFile(e) {
         const file = e.target.files[0];
         if (!file) return;
 
         const spinner = document.getElementById('loadingSpinner');
-        spinner.style.display = 'flex';
+        if (spinner) spinner.style.display = 'flex';
 
         const formData = new FormData();
         formData.append('video', file);
 
         try {
-            const response = await fetch('http://127.0.0.1:8000/analyze-video', {
+            const response = await fetch('/analyze-video', {
                 method: 'POST',
                 body: formData
             });
             const data = await response.json();
 
+            if (spinner) spinner.style.display = 'none';
+            
             if (data.status === 'OK') {
-                spinner.style.display = 'none';
                 currentAnalysisData = data;
 
                 // Hide empty dashboard
@@ -87,63 +97,62 @@ let currentAnalysisData = null;
 
                 // Load video UI with original blob URL
                 const videoContainer = document.getElementById('videoContainer');
-                videoContainer.innerHTML = getVideoGridHTML(URL.createObjectURL(file)); // Use blob for playback, backend copy saved for static
+                if (videoContainer) {
+                    videoContainer.innerHTML = getVideoGridHTML(URL.createObjectURL(file));
+                }
                 
                 // Setup video
                 const video = document.querySelector('#main-video');
-                currentVideo = video;
+                if (video) currentVideo = video;
 
                 // Populate detections
                 const ul = document.getElementById('detections-ul');
-                ul.innerHTML = '';
-                let totalCount = 0;
-                let avgConf = 0;
-                let confCount = 0;
-                Object.entries(data.detections).forEach(([label, info]) => {
-                  totalCount += info.count;
-                  avgConf += info.confidence;
-                  confCount++;
-                  const secondsStr = info.seconds.map(s => `${s}s`).join(', ');
-                  const li = document.createElement('li');
-                  li.className = 'badge';
-                  li.innerHTML = `<strong>${label.toUpperCase()}</strong> (${secondsStr})<br><small>Conf: ${info.confidence}% (${info.count}x)</small>`;
-                  ul.appendChild(li);
-                });
-                // Update metrics
-                const avgConfValue = confCount > 0 ? (avgConf / confCount).toFixed(1) : 0;
-                document.getElementById('confidence-val').textContent = avgConfValue + '%';
-                document.getElementById('count-val').textContent = totalCount;
-                
-                // Set inference time
-                document.getElementById('inference-val').textContent = data.inference_time + 's';
+                if (ul) {
+                    ul.innerHTML = '';
+                    let totalCount = 0;
+                    let avgConf = 0;
+                    let confCount = 0;
+                    Object.entries(data.detections || {}).forEach(([label, info]) => {
+                        totalCount += info.count || 0;
+                        avgConf += info.confidence || 0;
+                        confCount++;
+                        const secondsStr = (info.seconds || []).map(s => `${s}s`).join(', ');
+                        const li = document.createElement('li');
+                        li.className = 'badge';
+                        li.innerHTML = `<strong>${label.toUpperCase()}</strong> (${secondsStr})<br><small>Conf: ${info.confidence || 0}% (${info.count || 0}x)</small>`;
+                        ul.appendChild(li);
+                    });
+                    // Update metrics
+                    const avgConfValue = confCount > 0 ? (avgConf / confCount).toFixed(1) : 0;
+                    const confidenceVal = document.getElementById('confidence-val');
+                    if (confidenceVal) confidenceVal.textContent = avgConfValue + '%';
+                    const countVal = document.getElementById('count-val');
+                    if (countVal) countVal.textContent = totalCount;
+                    
+                    // Set inference time
+                    const inferenceVal = document.getElementById('inference-val');
+                    if (inferenceVal) inferenceVal.textContent = data.inference_time + 's';
+                }
 
                 // Enable save btn
-                const saveBtn = document.createElement('button');
-                saveBtn.className = 'btn btn-primary save-confirm-btn';
-                saveBtn.innerHTML = '<i class="fas fa-save"></i> Confirmar y Guardar en DB';
-                saveBtn.style.marginTop = '1rem';
-                video.parentElement.appendChild(saveBtn);
-                saveBtn.addEventListener('click', () => uploadSummary(file));
+                if (video && video.parentElement) {
+                    const saveBtn = document.createElement('button');
+                    saveBtn.className = 'btn btn-primary save-confirm-btn';
+                    saveBtn.innerHTML = '<i class="fas fa-save"></i> Confirmar y Guardar en DB';
+                    saveBtn.style.marginTop = '1rem';
+                    video.parentElement.appendChild(saveBtn);
+                    saveBtn.addEventListener('click', () => uploadSummary(file));
+                }
             } else {
-                spinner.style.display = 'none';
-                alert('Error in analysis: ' + data.error);
+                alert('Error in analysis: ' + (data.error || 'Unknown'));
             }
         } catch (error) {
-            spinner.style.display = 'none';
-            alert('Error analyzing video: ' + error.message + '\nEnsure backend is running: cd backend && uvicorn main:app --reload');
+            if (spinner) spinner.style.display = 'none';
+            alert('Error analyzing video: ' + error.message + '\nEnsure backend is running');
         }
     }
 
-    function loadVideo(videoSrc) {
-        const emptyDashboard = document.querySelector('.empty-dashboard');
-        const videoContainer = document.getElementById('videoContainer');
-        if (emptyDashboard) emptyDashboard.style.display = 'none';
-        videoContainer.innerHTML = getVideoGridHTML(videoSrc);
-        currentVideo = document.querySelector('#main-video');
-        initVideoSync(currentVideo);
-    }
-
-function getVideoGridHTML(videoSrc) {
+    function getVideoGridHTML(videoSrc) {
         return `
             <div class="video-section">
                 <video id="main-video" src="${videoSrc}" controls preload="metadata"></video>
@@ -170,7 +179,7 @@ function getVideoGridHTML(videoSrc) {
                         <div class="bar">
                             <div class="bar-fill" id="inferenceBar" style="width: 100%"></div>
                         </div>
-                        <span class="bar-value" id="inferenceVal">0s</span>
+                        <span class="bar-value" id="inference-val">0s</span>
                     </div>
                 </div>
                 <div class="detections-list">
@@ -182,84 +191,22 @@ function getVideoGridHTML(videoSrc) {
         `;
     }
 
-    function initVideoSync(video) {
-        video.addEventListener('loadedmetadata', () => {
-            summaryDetections = [];
-        });
-        video.addEventListener('timeupdate', () => {
-            const time = Math.floor(video.currentTime);
-            updateMetrics(time);
-        });
-        video.addEventListener('ended', () => {
-            const saveBtn = document.createElement('button');
-            saveBtn.className = 'btn btn-primary save-confirm-btn';
-            saveBtn.innerHTML = '<i class="fas fa-save"></i> Confirmar y Guardar en DB';
-            saveBtn.style.marginTop = '1rem';
-            video.parentElement.appendChild(saveBtn);
-            saveBtn.addEventListener('click', () => uploadSummary(currentVideoFile));
-        });
-    }
-
-    async function uploadSummary(videoFile) {
-        if (summaryDetections.length === 0) return;
-        try {
-            const formData = new FormData();
-            formData.append('video', videoFile);
-            formData.append('summary', JSON.stringify({
-                name: videoFile.name,
-                detections: summaryDetections
-            }));
-            const response = await fetch('http://127.0.0.1:8000/upload-results', { method: 'POST', body: formData });
-            const result = await response.json();
-            // Success notification
-            const notification = document.createElement('div');
-            notification.className = 'success-notification';
-            notification.innerHTML = `✅ Video guardado! ID: ${result.video_id}`;
-            document.body.appendChild(notification);
-            setTimeout(() => notification.remove(), 5000);
-        } catch (e) {
-            alert('Error upload: ' + e.message);
-        }
-    }
-
-
-
-// Duplicate loadHistory() and loadMetrics() removed - logic now in modular files
-
-    // YOLO SIM + METRICS + ALERTS
-    function updateMetrics(time) {
-        const activeObjects = Object.keys(detectionData).filter(obj => detectionData[obj].some(r => time >= r[0] && time <= r[1]));
-        const count = activeObjects.length;
-        const conf = 70 + Math.random() * 25 + count * 5;
-        
-        document.getElementById('confidence-bar').style.width = conf + '%';
-        document.getElementById('confidence-val').textContent = Math.round(conf) + '%';
-        document.getElementById('count-bar').style.width = Math.min(count * 25, 100) + '%';
-        document.getElementById('count-val').textContent = count;
-
-        // Detection tracking + severity
-        // (existing logic simplified)
-        const hasHighSeverity = activeObjects.some(obj => ['fuego', 'choque'].includes(obj));
-        if (hasHighSeverity) {
-            document.querySelector('.metrics-panel').classList.add('danger');
-            playBeep();
-        }
-
-        // Update detections list (simplified)
-        const ul = document.getElementById('detections-ul');
-        ul.innerHTML = activeObjects.map(obj => `<li class="badge live danger">${obj.toUpperCase()} LIVE</li>`).join('');
-    }
-
     function playBeep() {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        oscillator.frequency.value = 800;
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-        oscillator.start();
-        oscillator.stop(audioContext.currentTime + 0.2);
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.frequency.value = 800;
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + 0.2);
+        } catch (e) {}
     }
+
+    window.playBeep = playBeep; // Global for other modules
+    window.detectionData = {}; // Global for sim data
 });
+

@@ -1,47 +1,67 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+import os
 from typing import List
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime
+import time
+from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
+import cv2
+import torch
+from collections import defaultdict
 import pandas as pd
-import os
 import io
 import shutil
 
-from ultralytics import YOLO
-import cv2
-import time
-from collections import defaultdict
-import json
+# 1. Configuración de Rutas Absolutas
+BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIR = BASE_DIR.parent / "Frontend"
+INDEX_PATH = FRONTEND_DIR / "index.html"
+UPLOAD_DIR_PATH = BASE_DIR / "uploads"
+UPLOAD_DIR_PATH.mkdir(exist_ok=True)
 
-from fastapi.staticfiles import StaticFiles
+from transformers import OwlViTProcessor, OwlViTForObjectDetection
 
 app = FastAPI(title="DIIA Backend")
 
+# Global OWL-ViT
+owl_processor = None
+owl_model = None
+device = "cpu"
+
+def load_owl_vit():
+    global owl_processor, owl_model
+    if owl_model is None:
+        # Usamos OwlViT (v1) para total compatibilidad con el patch32
+        model_id = "google/owlvit-base-patch32"
+        print(f"Cargando cerebro de IA ({model_id})...")
+        owl_processor = OwlViTProcessor.from_pretrained(model_id)
+        owl_model = OwlViTForObjectDetection.from_pretrained(model_id)
+        owl_model.to(device)
+        print("IA Lista para detectar.")
+    return owl_processor, owl_model
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*", "http://localhost:5500", "http://127.0.0.1:5500"],
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.mount("/uploads", StaticFiles(directory="backend/uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR_PATH)), name="uploads")
+app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
 # DB config
 DB_CONFIG = {
     "host": "localhost",
     "database": "software",
-    "user": "postgres",  # assume default
+    "user": "postgres",
     "password": "71602598",
     "cursor_factory": RealDictCursor
 }
-
-
-
 
 class Detection(BaseModel):
     label: str
@@ -54,13 +74,128 @@ class VideoSummary(BaseModel):
     name: str
     detections: List[Detection]
 
+@app.get("/")
+async def read_index():
+    if not INDEX_PATH.exists():
+        return {"error": f"No se encuentra index.html en: {INDEX_PATH}"}
+    return FileResponse(str(INDEX_PATH))
+
+@app.post("/analyze-video")
+async def analyze_video(
+    video: UploadFile = File(...),
+    prompts: List[str] = Query(["fire", "smoke", "person", "helmet", "excavator", "safety vest"]),
+    min_confidence: float = Query(0.2)
+):
+    filename = video.filename
+    start_time = time.time()
+    
+    # Save video first for OpenCV using UPLOAD_DIR
+    UPLOAD_DIR = str(UPLOAD_DIR_PATH)
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    video_path = os.path.join(UPLOAD_DIR, filename)
+    content = await video.read()
+    with open(video_path, "wb") as f:
+        f.write(content)
+    
+    # Open video with path for OpenCV
+    cap = cv2.VideoCapture(video_path)
+    
+    # Video info
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration = frame_count / fps if fps > 0 else 0
+    
+    # Detections storage
+    detections = defaultdict(list)
+    max_confs = {}
+    
+    # Analyze every 3 seconds (speed opt)
+    for sec in range(0, int(duration) + 1, 3):
+        cap.set(cv2.CAP_PROP_POS_MSEC, sec * 1000)
+        ret, frame = cap.read()
+        if not ret:
+            break
+        
+        try:
+            owl_processor, owl_model = load_owl_vit()
+            # Resize frame for OWL-ViT (max 400px speed opt)
+            h, w = frame.shape[:2]
+            scale = 400 / max(h, w)
+            new_h, new_w = int(h * scale), int(w * scale)
+            frame_resized = cv2.resize(frame, (new_w, new_h))
+            
+            # OWL-ViT inference
+            inputs = owl_processor(text=[prompts], images=frame_resized, return_tensors="pt").to(device)
+            with torch.no_grad():
+                outputs = owl_model(**inputs)
+            
+            target_sizes = torch.tensor([frame_resized.shape[:2]]).to(device)
+            
+            # Función estándar OWL-ViT (post_process_queries)
+            results = owl_processor.post_process_queries(outputs, target_sizes=target_sizes, threshold=min_confidence)
+            results = results[0].cpu()
+            
+            # RAM cleanup
+            del inputs, outputs
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception as e:
+            print(f"FALLO CRÍTICO: {str(e)}")
+            return JSONResponse(status_code=500, content={"error": str(e)})
+        
+        if len(results) > 0:
+            boxes = results['boxes']
+            scores = results['scores']
+            labels_idx = results['labels'].long()
+            for i in range(len(scores)):
+                label_idx = labels_idx[i].item()
+                label = prompts[label_idx]
+                conf = scores[i].item()
+                if conf > min_confidence:
+                    detections[label].append(sec)
+                    if label not in max_confs or conf > max_confs[label]:
+                        max_confs[label] = conf
+    
+    cap.release()
+    
+    end_time = time.time()
+    inference_time = round(end_time - start_time, 2)
+    
+    # Scale confidence to 0-100
+    confs_100 = {label: round(max_conf * 100, 1) for label, max_conf in max_confs.items()}
+    
+    # Severity mapping
+    severity_map = {
+        "fire": "High", "explosion": "High",
+        "person": "Low", "vehicle": "Low", "excavator": "Low"
+    }
+    
+    # Prepare response
+    result_detections = {}
+    for label, seconds in detections.items():
+        unique_seconds = sorted(list(set(seconds)))
+        severity = severity_map.get(label.lower(), "Low")
+        result_detections[label] = {
+            "seconds": unique_seconds,
+            "confidence": confs_100.get(label, 0),
+            "count": len(unique_seconds),
+            "severity": severity
+        }
+    
+    return {
+        "status": "OK",
+        "filename": filename,
+        "upload_url": f"/uploads/{filename}",
+        "video_path": video_path,
+        "duration": duration,
+        "inference_time": inference_time,
+        "detections": result_detections
+    }
+
 @app.post("/upload-results")
 async def upload_results(summary: VideoSummary, video: UploadFile = File(...)):
-    # Create uploads dir
-    os.makedirs("uploads", exist_ok=True)
-    
-    # Save video file
-    video_path = f"uploads/{video.filename}"
+    # Save video using UPLOAD_DIR_PATH
+    video_path = os.path.join(str(UPLOAD_DIR_PATH), video.filename)
     with open(video_path, "wb") as buffer:
         shutil.copyfileobj(video.file, buffer)
     
@@ -94,7 +229,6 @@ async def upload_results(summary: VideoSummary, video: UploadFile = File(...)):
         conn.commit()
         return {"status": "success", "video_id": video_id, "video_saved": video_path, "detections_added": len(summary.detections)}
 
-    
     except Exception as e:
         if conn:
             conn.rollback()
@@ -103,107 +237,6 @@ async def upload_results(summary: VideoSummary, video: UploadFile = File(...)):
     finally:
         if conn:
             conn.close()
-
-
-@app.post("/analyze-video")
-async def analyze_video(video: UploadFile = File(...)):
-    filename = video.filename
-    start_time = time.time()
-    
-    # Save video first for OpenCV
-    os.makedirs("backend/uploads", exist_ok=True)
-    video_path = f"backend/uploads/{filename}"
-    content = await video.read()
-    with open(video_path, "wb") as f:
-        f.write(content)
-    
-    # Load YOLO model (nano for speed, change to custom.pt later)
-    model = YOLO("yolov8n.pt")
-    
-    # Open video with path for OpenCV
-    cap = cv2.VideoCapture(video_path)
-    
-    # Video info
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    duration = frame_count / fps if fps > 0 else 0
-    
-    # Detections storage
-    detections = defaultdict(list)
-    max_confs = {}
-    
-    # Analyze every 1 second
-    for sec in range(0, int(duration) + 1):
-        cap.set(cv2.CAP_PROP_POS_MSEC, sec * 1000)
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        # YOLO inference
-        results = model(frame, verbose=False)
-        
-        for result in results:
-            if result.boxes is not None:
-                for box in result.boxes:
-                    cls_id = int(box.cls[0])
-                    label = model.names[cls_id]
-                    conf = float(box.conf[0])
-                    
-                    detections[label].append(sec)
-                    if label not in max_confs or conf > max_confs[label]:
-                        max_confs[label] = conf
-    
-    cap.release()
-    
-    end_time = time.time()
-    inference_time = round(end_time - start_time, 2)
-    
-    # Scale confidence to 0-100
-    confs_100 = {label: round(max_conf * 100, 1) for label, max_conf in max_confs.items()}
-    
-    # Prepare response
-    result_detections = {}
-    for label, seconds in detections.items():
-        unique_seconds = sorted(list(set(seconds)))
-        result_detections[label] = {
-            "seconds": unique_seconds,
-            "confidence": confs_100.get(label, 0),
-            "count": len(unique_seconds)
-        }
-    
-    return {
-        "status": "OK",
-        "filename": filename,
-        "upload_url": f"/uploads/{filename}",
-        "video_path": video_path,
-        "duration": duration,
-        "inference_time": inference_time,
-        "detections": result_detections
-    }
-
-
-@app.get("/")
-async def root():
-    return {"msg": "DIIA Backend ready - Full UI + Analytics"}
-
-
-@app.get("/entrenamientos")
-async def get_entrenamientos():
-    return {
-        "sessions": [
-            {"id": 1, "video": "video1.mp4", "fecha": "2024-04-01", "detections": 45, "confidence": 0.87, "action": "Ver Detalle"},
-            {"id": 2, "video": "video2.mp4", "fecha": "2024-04-02", "detections": 32, "confidence": 0.92, "action": "Ver Detalle"},
-            {"id": 3, "video": "video3.mp4", "fecha": "2024-04-03", "detections": 28, "confidence": 0.89, "action": "Ver Detalle"}
-        ]
-    }
-
-@app.get("/metricas")
-async def get_metricas():
-    return {
-        "detection_types": {"Fuego": 15, "Humo": 8, "Choque": 12},
-        "model_performance": {"Precision": 0.94, "Recall": 0.91, "F1": 0.92},
-        "server_status": {"cpu": 45, "gpu": 72, "fps": 30}
-    }
 
 @app.get("/videos")
 async def get_videos():
@@ -230,41 +263,6 @@ async def get_videos():
     finally:
         if conn:
             conn.close()
-
-@app.get("/export/{video_id}")
-async def export_logs(video_id: int):
-    conn = None
-    try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
-            SELECT v.name, d.label, d.start_time, d.end_time, d.confidence, d.severity,
-                   a.downtime_seconds, a.atasco_frequency, a.unique_objects, a.avg_confidence
-            FROM videos v 
-            LEFT JOIN detections d ON v.id = d.video_id 
-            LEFT JOIN analytics a ON v.id = a.video_id 
-            WHERE v.id = %s ORDER BY d.start_time
-        """, (video_id,))
-        results = cur.fetchall()
-        
-        # Generate CSV with pandas
-        df = pd.DataFrame([dict(r) for r in results])
-        csv_stream = io.StringIO()
-        df.to_csv(csv_stream, index=False)
-        csv_content = csv_stream.getvalue()
-        
-        return StreamingResponse(
-            iter([csv_content.encode('utf-8')]),
-            media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename=video_{video_id}_report.csv"}
-        )
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if conn:
-            conn.close()
-
 
 @app.get("/export-csv")
 async def export_all_csv():
@@ -294,8 +292,25 @@ async def export_all_csv():
         if conn:
             conn.close()
 
+@app.get("/entrenamientos")
+async def get_entrenamientos():
+    return {
+        "sessions": [
+            {"id": 1, "video": "video1.mp4", "fecha": "2024-04-01", "detections": 45, "confidence": 0.87, "action": "Ver Detalle"},
+            {"id": 2, "video": "video2.mp4", "fecha": "2024-04-02", "detections": 32, "confidence": 0.92, "action": "Ver Detalle"},
+            {"id": 3, "video": "video3.mp4", "fecha": "2024-04-03", "detections": 28, "confidence": 0.89, "action": "Ver Detalle"}
+        ]
+    }
+
+@app.get("/metricas")
+async def get_metricas():
+    return {
+        "detection_types": {"Fuego": 15, "Humo": 8, "Choque": 12},
+        "model_performance": {"Precision": 0.94, "Recall": 0.91, "F1": 0.92},
+        "server_status": {"cpu": 45, "gpu": 72, "fps": 30}
+    }
+
 if __name__ == "__main__":
     import uvicorn
-    import shutil
     uvicorn.run(app, host="0.0.0.0", port=8000)
 

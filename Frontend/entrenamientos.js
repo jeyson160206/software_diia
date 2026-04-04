@@ -6,7 +6,7 @@ async function loadEntrenamientos() {
     contentWrapper.innerHTML = '<div id="entrenamientos-container" style="padding: 2rem; text-align: center;"><p>Cargando historial...</p></div>';
 
     try {
-        const response = await fetch('http://127.0.0.1:8000/videos');
+        const response = await fetch('/videos');
         const data = await response.json();
         const videos = data.videos || [];
 
@@ -63,3 +63,4 @@ async function loadEntrenamientos() {
             '<p style="color: var(--alert-red);">Error cargando historial. Verifica que el backend esté activo.</p>';
     }
 }
+
