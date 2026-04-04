@@ -2,10 +2,11 @@
 // Charts with Chart.js, empty state overlay
 
 async function loadMetricas() {
+    if (typeof window.showSection === 'function') window.showSection('metricas');
     const contentWrapper = document.querySelector('.content-wrapper');
     contentWrapper.innerHTML = `
         <div class="tab-content metrics-dashboard">
-            <h3 style="margin-bottom: 2rem; color: var(--neon-green); text-align: center;">
+            <h3 style="margin-bottom: 2rem; color: var(--turquesa); text-align: center;">
                 <i class="fas fa-chart-line"></i> Métricas de Inferencia &amp; Analítica
             </h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; position: relative;">

@@ -19,33 +19,57 @@ document.addEventListener('DOMContentLoaded', function() {
     updateClock();
     setInterval(updateClock, 1000);
 
-    // TABS HANDLING
-    const tabLinks = document.querySelectorAll('.tab-link');
+function showSection(sectionId) {
+        // Hide all tab contents
+        document.querySelectorAll('.tab-content').forEach(sec => {
+            sec.style.display = 'none';
+        });
+        
+        // Hide spinner
+        const spinner = document.getElementById('loadingSpinner');
+        if (spinner) spinner.style.display = 'none';
+        
+        // Pause and clear any video
+        const video = document.querySelector('#main-video');
+        if (video) {
+            video.pause();
+            video.src = '';
+            video.load();
+        }
+        
+        // Show target section
+        const targetSection = document.getElementById(sectionId + '-section') || document.querySelector('[id*=' + sectionId + ']');
+        if (targetSection) {
+            targetSection.style.display = 'block';
+        }
+    }
     const contentWrapper = document.querySelector('.content-wrapper');
     
     if (tabLinks.length > 0) {
         tabLinks.forEach(link => {
-            link.addEventListener('click', async () => {
+            link.addEventListener('click', async (e) => {
+                const tabText = link.textContent.trim().toLowerCase();
                 tabLinks.forEach(t => t.classList.remove('active'));
                 link.classList.add('active');
                 
-                const tabText = link.textContent.trim();
-                const videoContainer = document.getElementById('videoContainer');
-                
-                if (tabText === 'Vista General') {
+                if (tabText.includes('vista general')) {
+                    showSection('general');
+                    const videoContainer = document.getElementById('videoContainer');
+                    if (videoContainer) videoContainer.innerHTML = ''; // Clean video content
                     const empty = document.querySelector('.empty-dashboard');
-                    if (empty && contentWrapper) {
-                        contentWrapper.innerHTML = empty.outerHTML;
+                    const generalSection = document.getElementById('general-section');
+                    if (generalSection && empty) {
+                        // Ensure empty dashboard shows
+                        generalSection.innerHTML = empty.outerHTML + generalSection.querySelector('.loading-spinner').outerHTML + '<div class="video-grid" id="videoContainer" style="display: none;"></div>';
                     }
-                    if (videoContainer) videoContainer.style.display = 'grid';
-                } else if (tabText === 'Entrenamientos') {
-                    if (videoContainer) videoContainer.style.display = 'none';
+                } else if (tabText.includes('entrenamientos')) {
+                    showSection('entrenamientos');
                     if (typeof loadEntrenamientos === 'function') await loadEntrenamientos();
-                } else if (tabText === 'Datasets') {
-                    if (videoContainer) videoContainer.style.display = 'none';
+                } else if (tabText.includes('datasets')) {
+                    showSection('datasets');
                     if (typeof loadDatasets === 'function') loadDatasets();
-                } else if (tabText === 'Métricas de Inferencia') {
-                    if (videoContainer) videoContainer.style.display = 'none';
+                } else if (tabText.includes('métricas') || tabText.includes('metricas')) {
+                    showSection('metricas');
                     if (typeof loadMetricas === 'function') await loadMetricas();
                 }
             });

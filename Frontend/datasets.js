@@ -2,10 +2,11 @@
 // Static cards for CVAT stats + load new dataset button
 
 function loadDatasets() {
+    if (typeof window.showSection === 'function') window.showSection('datasets');
     const contentWrapper = document.querySelector('.content-wrapper');
     contentWrapper.innerHTML = `
         <div class="tab-content datasets-grid">
-            <h3 style="text-align: center; margin-bottom: 2rem; color: var(--neon-green);">
+    <h3 style="text-align: center; margin-bottom: 2rem; color: var(--turquesa);">
                 <i class="fas fa-database"></i> Datasets &amp; Inventario de Etiquetado
             </h3>
             <div class="stats-cards">

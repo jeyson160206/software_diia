@@ -140,7 +140,7 @@ async def analyze_video(
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
         except Exception as e:
-            print(f"FALLO CRÍTICO: {str(e)}")
+            print(f"Error en el análisis: {str(e)}")
             return JSONResponse(status_code=500, content={"error": str(e)})
         
         if len(results) > 0:

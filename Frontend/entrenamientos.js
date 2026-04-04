@@ -2,6 +2,7 @@
 // Fetches /videos, renders table or empty state
 
 async function loadEntrenamientos() {
+    if (typeof window.showSection === 'function') window.showSection('entrenamientos');
     const contentWrapper = document.querySelector('.content-wrapper');
     contentWrapper.innerHTML = '<div id="entrenamientos-container" style="padding: 2rem; text-align: center;"><p>Cargando historial...</p></div>';
 
